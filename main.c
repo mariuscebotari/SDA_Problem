@@ -1,198 +1,324 @@
 #include <stdio.h>
-#include "functions.h"
+#include <stdlib.h>
 
-Sale *sales = NULL;
-int num_sales = 0;
+typedef struct Node {
+    int key;
+    int field1;
+    int field2;
+    int field3;
+    struct Node *left;
+    struct Node *right;
+} Node;
 
+typedef struct QueueNode {
+    Node* node;
+    struct QueueNode* next;
+} QueueNode;
 
-int count_rows(FILE *file) {
-    const int buffer_size = 500;
-    char buffer[buffer_size];
-    int lines = 0;
-    while (fgets(buffer, buffer_size, file)) {
-        lines++;
-    }
-    rewind(file);
-    return lines ? lines : 0;
+typedef struct Queue {
+    QueueNode *front, *rear;
+} Queue;
+
+Queue* create_queue() {
+    Queue* q = (Queue*)malloc(sizeof(Queue));
+    q->front = q->rear = NULL;
+    return q;
 }
 
-void read_sales_data(const char *filepath) {
-    FILE *file = fopen(filepath, "r");
-    if (file == NULL) {
-        printf("Error opening file.\n");
-        exit(1);
+void enqueue(Queue* q, Node* node) {
+    QueueNode* temp = (QueueNode*)malloc(sizeof(QueueNode));
+    temp->node = node;
+    temp->next = NULL;
+
+    if (q->rear == NULL) {
+        q->front = q->rear = temp;
+        return;
     }
 
-    int num_rows = count_rows(file);
-
-    sales = (Sale *)calloc(num_rows, sizeof(Sale));
-    if (sales == NULL) {
-        printf("Memory allocation failed.\n");
-        exit(1);
-    }
-
-    char line[MAX_COLS * MAX_STRING_LENGTH];
-    while (fgets(line, sizeof(line), file) != NULL && num_sales < num_rows) {
-        sscanf(line, "%10s,%d,%[^,],%[^,],%[^,],%f,%d,%[^,],%[^\n]",
-               sales[num_sales].date, &sales[num_sales].product_id, sales[num_sales].product_name,
-               sales[num_sales].category, sales[num_sales].subcategory, &sales[num_sales].unit_price,
-               &sales[num_sales].quantity_sold, sales[num_sales].country, sales[num_sales].city);
-        num_sales++;
-    }
-
-    fclose(file);
+    q->rear->next = temp;
+    q->rear = temp;
 }
 
-float calculate_total_revenue(int month, int year) {
-    float total_revenue = 0;
-    int sale_month, sale_year;
-    for (int i = 0; i < num_sales; i++) {
-        sscanf(sales[i].date, "%d-%d", &sale_year, &sale_month);
+Node* dequeue(Queue* q) {
+    if (q->front == NULL)
+        return NULL;
 
-        if (sale_month == month && sale_year == year) {
-            total_revenue += sales[i].unit_price * sales[i].quantity_sold;
+    QueueNode* temp = q->front;
+    Node* node = temp->node;
+
+    q->front = q->front->next;
+
+    if (q->front == NULL)
+        q->rear = NULL;
+
+    free(temp);
+
+    return node;
+}
+
+
+Node* insert_node(Node* root, int key, int field1, int field2, int field3) {
+    if (root == NULL){
+        Node* new_node = (Node*)malloc(sizeof(Node));
+        new_node->key = key;
+        new_node->field1 = field1;
+        new_node->field2 = field2;
+        new_node->field3 = field3;
+        new_node->left = new_node->right = NULL;
+        return new_node;
+    }
+    if (key < root->key)
+        root->left = insert_node(root->left, key, field1, field2, field3);
+    else if (key > root->key)
+        root->right = insert_node(root->right, key, field1, field2, field3);
+
+    return root;
+}
+
+void print_2D_util(Node *root, int space) {
+    int i;
+
+    if (root == NULL)
+        return;
+
+    space += 10;
+
+    print_2D_util(root->right, space);
+
+    printf("\n");
+    for (i = 10; i < space; i++)
+        printf(" ");
+    printf("%d\n", root->key);
+
+    print_2D_util(root->left, space);
+}
+
+void print_2D(Node *root) {
+    print_2D_util(root, 0);
+}
+//balance tree AVL algorithm
+int get_height(Node* node) {
+    if (node == NULL)
+        return 0;
+    int left_height = get_height(node->left);
+    int right_height = get_height(node->right);
+    return (left_height > right_height ? left_height : right_height) + 1;
+}
+
+Node* perform_right_rotation(Node* root) {
+    Node* new_root = root->left;
+    root->left = new_root->right;
+    new_root->right = root;
+    return new_root;
+}
+
+Node* perform_left_rotation(Node* root) {
+    Node* new_root = root->right;
+    root->right = new_root->left;
+    new_root->left = root;
+    return new_root;
+}
+
+Node* balance_tree(Node* root) {
+    if (root == NULL)
+        return root;
+
+    if (get_height(root->left) - get_height(root->right) > 1) {
+        if (get_height(root->left->left) >= get_height(root->left->right))
+            root = perform_right_rotation(root);
+        else {
+            root->left = perform_left_rotation(root->left);
+            root = perform_right_rotation(root);
         }
     }
-    return total_revenue;
-}
-
-void print_top_5_products() {
-    for (int i = 0; i < num_sales - 1; i++) {
-        for (int j = i + 1; j < num_sales; j++) {
-            float revenue_i = sales[i].unit_price * sales[i].quantity_sold;
-            float revenue_j = sales[j].unit_price * sales[j].quantity_sold;
-            if (revenue_j > revenue_i) {
-                Sale temp = sales[i];
-                sales[i] = sales[j];
-                sales[j] = temp;
-            }
-        }
-
-        if (i == 5) {
-            break;
-        }
-
-    }
-    printf("Top 5 products by revenue:\n");
-    for (int i = 0; i < 5; i++) {
-        float revenue = sales[i].unit_price * sales[i].quantity_sold;
-        printf("%d. %s (%s) - Revenue: %.2f\n", i + 1, sales[i].product_name, sales[i].category, revenue);
-    }
-}
-
-void print_sales_per_category(const char *category) {
-    int total_sales = 0;
-    for (int i = 0; i < num_sales; i++) {
-        if (strcmp(sales[i].category, category) == 0) {
-            total_sales += sales[i].quantity_sold;
-        }
-    }
-    printf("Total sales for category '%s': %d\n", category, total_sales);
-}
-
-void print_cities_with_highest_sales(const char *country) {
-    int max_sales = 0;
-    char max_city[MAX_STRING_LENGTH] = "";
-
-    for (int i = 0; i < num_sales; i++) {
-        if (strcmp(sales[i].country, country) == 0 && sales[i].quantity_sold > max_sales) {
-            max_sales = sales[i].quantity_sold;
-            strcpy(max_city, sales[i].city);
+    else if (get_height(root->right) - get_height(root->left) > 1) {
+        if (get_height(root->right->right) >= get_height(root->right->left))
+            root = perform_left_rotation(root);
+        else {
+            root->right = perform_right_rotation(root->right);
+            root = perform_left_rotation(root);
         }
     }
 
-    if (max_sales > 0) {
-        printf("City with the highest sales for %s: %s (Sales: %d)\n", country, max_city, max_sales);
-    } else {
-        printf("No sales data found for %s\n", country);
+    return root;
+}
+
+Node* perform_search(Node* root, int key) {
+    if (root == NULL || root->key == key)
+        return root;
+
+    if (root->key < key)
+        return perform_search(root->right, key);
+
+    return perform_search(root->left, key);
+}
+
+Node* mirror_tree(Node* root) {
+    if (root == NULL)
+        return root;
+
+    Node* temp = root->left;
+    root->left = mirror_tree(root->right);
+    root->right = mirror_tree(temp);
+
+    return root;
+}
+
+Node* clear_tree(Node* root) {
+    if (root == NULL)
+        return root;
+
+    root->left = clear_tree(root->left);
+    root->right = clear_tree(root->right);
+
+    free(root);
+
+    return NULL;
+}
+
+Node* free_tree(Node* root) {
+    if (root == NULL)
+        return root;
+
+    root->left = free_tree(root->left);
+    root->right = free_tree(root->right);
+
+    free(root);
+
+    return NULL;
+}
+
+void perform_inorder_traversal(Node* root) {
+    if (root != NULL) {
+        perform_inorder_traversal(root->left);
+        printf("%d \n", root->key);
+        perform_inorder_traversal(root->right);
     }
 }
 
-void print_monthly_sales_trends(int year) {
-    char subcategory[100];
-    printf("Input subcategory: ");
-    scanf(" %s", subcategory);
-    int monthly_sales[12] = {0};
-
-    for (int i = 0; i < num_sales; i++) {
-        int sale_year;
-        int sale_month;
-        sscanf(sales[i].date, "%d-%d", &sale_year, &sale_month);
-        if (sale_year == year) {
-            if (strcmp(sales[i].subcategory, subcategory) == 0) {
-                monthly_sales[sale_month - 1] += sales[i].quantity_sold;
-            }
-        }
-    }
-
-    // printeaza vanzarile lunare
-    printf("Monthly sales trends for %d:\n", year);
-    for (int i = 0; i < 12; i++) {
-        printf("Month %2d: %3d sales\n", i + 1, monthly_sales[i]);
+void perform_preorder_traversal(Node* root) {
+    if (root != NULL) {
+        printf("%d \n", root->key);
+        perform_preorder_traversal(root->left);
+        perform_preorder_traversal(root->right);
     }
 }
 
-void free_sales_data() {
-    free(sales);
+void perform_postorder_traversal(Node* root) {
+    if (root != NULL) {
+        perform_postorder_traversal(root->left);
+        perform_postorder_traversal(root->right);
+        printf("%d \n", root->key);
+    }
 }
 
-int main() {
-    read_sales_data("H:\\CLionProjects\\Seminar\\sales.txt");
+void perform_depth_first_search(Node* root) {
+    if (root == NULL)
+        return;
 
-    int choice;
-    do {
-        printf("\nMenu:\n");
-        printf("1. Total revenue for a specific month and year\n");
-        printf("2. Top 5 products by revenue\n");
-        printf("3. Sales per category\n");
-        printf("4. Cities with highest sales for a specific country\n");
-        printf("5. Monthly sales trends for a specific year\n");
-        printf("6. Exit\n");
+    printf("%d \n", root->key);
+    perform_depth_first_search(root->left);
+    perform_depth_first_search(root->right);
+}
+
+void perform_breadth_first_search(Node* root) {
+    if (root == NULL)
+        return;
+
+    Queue* q = create_queue();
+    enqueue(q, root);
+
+    while (q->front != NULL) {
+        Node* node = dequeue(q);
+
+        printf("%d \n", node->key);
+
+        if (node->left != NULL)
+            enqueue(q, node->left);
+
+        if (node->right != NULL)
+            enqueue(q, node->right);
+    }
+
+    free(q);
+}
+
+int main(void){
+    Node *root = NULL;
+    Node *search_result = NULL;
+    int choice, key, field1, field2, field3;
+
+    while(1) {
+        printf("\n1. Insert \n2. Print tree \n3. Search and print node \n4. Inorder traversal \n"
+               "5. Preorder traversal \n6. Postorder traversal \n7. Depth-first search (DFS) \n"
+               "8. Breadth-first search (BFS) \n9. Balance tree \n10. Mirror tree \n"
+               "11. Clear tree \n12. Free tree \n13. Exit \n");
         printf("Enter your choice: ");
         scanf("%d", &choice);
 
-
         switch (choice) {
-            case 1: {
-                int month, year;
-                printf("Enter month and year (MM YYYY): ");
-                scanf("%d %d", &month, &year);
-                float revenue = calculate_total_revenue(month, year);
-                printf("Total revenue for %d/%d: %.2f\n", month, year, revenue);
+            case 1:
+                printf("Enter the key, field1, field2, and field3 to be inserted: ");
+                scanf("%d %d %d %d", &key, &field1, &field2, &field3);
+                root = insert_node(root, key, field1, field2, field3);
                 break;
-            }
             case 2:
-                print_top_5_products();
+                printf("The binary tree is: \n");
+                print_2D(root);
                 break;
-            case 3: {
-                char category[MAX_STRING_LENGTH];
-                printf("Enter category: ");
-                scanf("%s", category);
-                print_sales_per_category(category);
+            case 3:
+                printf("Enter key to search: ");
+                scanf("%d", &key);
+                search_result = perform_search(root, key);
+                if(search_result == NULL)
+                    printf("Key not found in tree \n");
+                else
+                    printf("Node found: key = %d, field1 = %d, field2 = %d, field3 = %d\n",
+                           search_result->key, search_result->field1, search_result->field2, search_result->field3);
                 break;
-            }
-            case 4: {
-                char country[MAX_STRING_LENGTH];
-                printf("Enter country: ");
-                scanf("%s", country);
-                print_cities_with_highest_sales(country);
+            case 4:
+                printf("Inorder traversal of the binary tree is: \n");
+                perform_inorder_traversal(root);
                 break;
-            }
-            case 5: {
-                int year;
-                printf("Enter year: ");
-                scanf("%d", &year);
-                print_monthly_sales_trends(year);
+            case 5:
+                printf("Preorder traversal of the binary tree is: \n");
+                perform_preorder_traversal(root);
                 break;
-            }
             case 6:
-                printf("You closed the program!\n");
+                printf("Postorder traversal of the binary tree is: \n");
+                perform_postorder_traversal(root);
                 break;
+            case 7:
+                printf("Depth-first search (DFS) of the binary tree is: \n");
+                perform_depth_first_search(root);
+                break;
+            case 8:
+                printf("Breadth-first search (BFS) of the binary tree is: \n");
+                perform_breadth_first_search(root);
+                break;
+            case 9:
+                printf("Balancing the binary tree... \n");
+                root = balance_tree(root);
+                break;
+            case 10:
+                printf("Mirroring the binary tree... \n");
+                root = mirror_tree(root);
+                break;
+            case 11:
+                printf("Clearing the binary tree... \n");
+                root = clear_tree(root);
+                break;
+            case 12:
+                printf("Freeing the binary tree... \n");
+                root = free_tree(root);
+                break;
+            case 13:
+                printf("Exiting the program... \n");
+                exit(0);
             default:
-                printf("Invalid choice. Please try again.\n");
+                printf("Invalid choice \n");
         }
-    } while (choice != 0);
+    }
 
-    free_sales_data();
     return 0;
 }
