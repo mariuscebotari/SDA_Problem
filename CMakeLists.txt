@@ -1,10 +1,6 @@
-cmake_minimum_required(VERSION 3.26)
-project(Seminar C)
+cmake_minimum_required(VERSION 3.28)
+project(Lab5SDA C)
 
 set(CMAKE_C_STANDARD 11)
 
-add_executable(Seminar
-        main.c
-        functions.h
-        struct.h
-)
+add_executable(Lab5SDA main.c)

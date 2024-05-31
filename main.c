@@ -1,198 +1,317 @@
 #include <stdio.h>
-#include "functions.h"
+#include <stdlib.h>
+#include <time.h>
 
-Sale *sales = NULL;
-int num_sales = 0;
+// Sorting functions
+void selection_sort(int arr[], int n);
+void insertion_sort(int arr[], int n);
+void bubble_sort(int arr[], int n);
+void merge_sort(int arr[], int l, int r);
+void quick_sort(int arr[], int low, int high);
+void heap_sort(int arr[], int n);
 
+// Auxiliary functions for sorting
+void merge(int arr[], int l, int m, int r);
+int partition(int arr[], int low, int high);
+void heapify(int arr[], int n, int i);
 
-int count_rows(FILE *file) {
-    const int buffer_size = 500;
-    char buffer[buffer_size];
-    int lines = 0;
-    while (fgets(buffer, buffer_size, file)) {
-        lines++;
-    }
-    rewind(file);
-    return lines ? lines : 0;
-}
+// Search functions
+int linear_search(int arr[], int n, int x);
+int binary_search(int arr[], int l, int r, int x);
 
-void read_sales_data(const char *filepath) {
-    FILE *file = fopen(filepath, "r");
-    if (file == NULL) {
-        printf("Error opening file.\n");
-        exit(1);
-    }
-
-    int num_rows = count_rows(file);
-
-    sales = (Sale *)calloc(num_rows, sizeof(Sale));
-    if (sales == NULL) {
-        printf("Memory allocation failed.\n");
-        exit(1);
-    }
-
-    char line[MAX_COLS * MAX_STRING_LENGTH];
-    while (fgets(line, sizeof(line), file) != NULL && num_sales < num_rows) {
-        sscanf(line, "%10s,%d,%[^,],%[^,],%[^,],%f,%d,%[^,],%[^\n]",
-               sales[num_sales].date, &sales[num_sales].product_id, sales[num_sales].product_name,
-               sales[num_sales].category, sales[num_sales].subcategory, &sales[num_sales].unit_price,
-               &sales[num_sales].quantity_sold, sales[num_sales].country, sales[num_sales].city);
-        num_sales++;
-    }
-
-    fclose(file);
-}
-
-float calculate_total_revenue(int month, int year) {
-    float total_revenue = 0;
-    int sale_month, sale_year;
-    for (int i = 0; i < num_sales; i++) {
-        sscanf(sales[i].date, "%d-%d", &sale_year, &sale_month);
-
-        if (sale_month == month && sale_year == year) {
-            total_revenue += sales[i].unit_price * sales[i].quantity_sold;
-        }
-    }
-    return total_revenue;
-}
-
-void print_top_5_products() {
-    for (int i = 0; i < num_sales - 1; i++) {
-        for (int j = i + 1; j < num_sales; j++) {
-            float revenue_i = sales[i].unit_price * sales[i].quantity_sold;
-            float revenue_j = sales[j].unit_price * sales[j].quantity_sold;
-            if (revenue_j > revenue_i) {
-                Sale temp = sales[i];
-                sales[i] = sales[j];
-                sales[j] = temp;
-            }
-        }
-
-        if (i == 5) {
-            break;
-        }
-
-    }
-    printf("Top 5 products by revenue:\n");
-    for (int i = 0; i < 5; i++) {
-        float revenue = sales[i].unit_price * sales[i].quantity_sold;
-        printf("%d. %s (%s) - Revenue: %.2f\n", i + 1, sales[i].product_name, sales[i].category, revenue);
-    }
-}
-
-void print_sales_per_category(const char *category) {
-    int total_sales = 0;
-    for (int i = 0; i < num_sales; i++) {
-        if (strcmp(sales[i].category, category) == 0) {
-            total_sales += sales[i].quantity_sold;
-        }
-    }
-    printf("Total sales for category '%s': %d\n", category, total_sales);
-}
-
-void print_cities_with_highest_sales(const char *country) {
-    int max_sales = 0;
-    char max_city[MAX_STRING_LENGTH] = "";
-
-    for (int i = 0; i < num_sales; i++) {
-        if (strcmp(sales[i].country, country) == 0 && sales[i].quantity_sold > max_sales) {
-            max_sales = sales[i].quantity_sold;
-            strcpy(max_city, sales[i].city);
-        }
-    }
-
-    if (max_sales > 0) {
-        printf("City with the highest sales for %s: %s (Sales: %d)\n", country, max_city, max_sales);
-    } else {
-        printf("No sales data found for %s\n", country);
-    }
-}
-
-void print_monthly_sales_trends(int year) {
-    char subcategory[100];
-    printf("Input subcategory: ");
-    scanf(" %s", subcategory);
-    int monthly_sales[12] = {0};
-
-    for (int i = 0; i < num_sales; i++) {
-        int sale_year;
-        int sale_month;
-        sscanf(sales[i].date, "%d-%d", &sale_year, &sale_month);
-        if (sale_year == year) {
-            if (strcmp(sales[i].subcategory, subcategory) == 0) {
-                monthly_sales[sale_month - 1] += sales[i].quantity_sold;
-            }
-        }
-    }
-
-    // printeaza vanzarile lunare
-    printf("Monthly sales trends for %d:\n", year);
-    for (int i = 0; i < 12; i++) {
-        printf("Month %2d: %3d sales\n", i + 1, monthly_sales[i]);
-    }
-}
-
-void free_sales_data() {
-    free(sales);
-}
+// Utility functions
+void initialize_array(int arr[], int n);
+void print_array(int arr[], int n);
+void free_array(int *arr);
 
 int main() {
-    read_sales_data("H:\\CLionProjects\\Seminar\\sales.txt");
+    int n, choice, method, search_method, x;
+    int *arr;
+    clock_t start, end;
+    double cpu_time_used;
 
-    int choice;
-    do {
+    printf("Enter the size of the array: ");
+    scanf("%d", &n);
+
+    arr = (int *)malloc(n * sizeof(int));
+
+    if (arr == NULL) {
+        printf("Memory allocation failed\n");
+        return 1;
+    }
+
+    while (1) {
         printf("\nMenu:\n");
-        printf("1. Total revenue for a specific month and year\n");
-        printf("2. Top 5 products by revenue\n");
-        printf("3. Sales per category\n");
-        printf("4. Cities with highest sales for a specific country\n");
-        printf("5. Monthly sales trends for a specific year\n");
+        printf("1. Initialize array with random numbers\n");
+        printf("2. Display array\n");
+        printf("3. Free array memory\n");
+        printf("4. Sort array\n");
+        printf("5. Search for a number in the array\n");
         printf("6. Exit\n");
-        printf("Enter your choice: ");
+        printf("Choose an option: ");
         scanf("%d", &choice);
 
-
         switch (choice) {
-            case 1: {
-                int month, year;
-                printf("Enter month and year (MM YYYY): ");
-                scanf("%d %d", &month, &year);
-                float revenue = calculate_total_revenue(month, year);
-                printf("Total revenue for %d/%d: %.2f\n", month, year, revenue);
+            case 1:
+                initialize_array(arr, n);
                 break;
-            }
             case 2:
-                print_top_5_products();
+                print_array(arr, n);
                 break;
-            case 3: {
-                char category[MAX_STRING_LENGTH];
-                printf("Enter category: ");
-                scanf("%s", category);
-                print_sales_per_category(category);
+            case 3:
+                free_array(arr);
                 break;
-            }
-            case 4: {
-                char country[MAX_STRING_LENGTH];
-                printf("Enter country: ");
-                scanf("%s", country);
-                print_cities_with_highest_sales(country);
-                break;
-            }
-            case 5: {
-                int year;
-                printf("Enter year: ");
-                scanf("%d", &year);
-                print_monthly_sales_trends(year);
-                break;
-            }
-            case 6:
-                printf("You closed the program!\n");
-                break;
-            default:
-                printf("Invalid choice. Please try again.\n");
-        }
-    } while (choice != 0);
+            case 4:
+                printf("Choose sorting method:\n");
+                printf("1. Selection Sort\n");
+                printf("2. Insertion Sort\n");
+                printf("3. Bubble Sort\n");
+                printf("4. Merge Sort\n");
+                printf("5. Quick Sort\n");
+                printf("6. Heap Sort\n");
+                printf("Choose an option: ");
+                scanf("%d", &method);
 
-    free_sales_data();
-    return 0;
+                start = clock();
+                switch (method) {
+                    case 1:
+                        selection_sort(arr, n);
+                        break;
+                    case 2:
+                        insertion_sort(arr, n);
+                        break;
+                    case 3:
+                        bubble_sort(arr, n);
+                        break;
+                    case 4:
+                        merge_sort(arr, 0, n - 1);
+                        break;
+                    case 5:
+                        quick_sort(arr, 0, n - 1);
+                        break;
+                    case 6:
+                        heap_sort(arr, n);
+                        break;
+                    default:
+                        printf("Invalid option\n");
+                        continue;
+                }
+                end = clock();
+                cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
+                printf("Sorting executed in %f seconds\n", cpu_time_used);
+                break;
+            case 5:
+                printf("Enter the number to search for: ");
+                scanf("%d", &x);
+                printf("Choose search method:\n");
+                printf("1. Linear Search\n");
+                printf("2. Binary Search\n");
+                printf("Choose an option: ");
+                scanf("%d", &search_method);
+
+                start = clock();
+                switch (search_method) {
+                    case 1:
+                        linear_search(arr, n, x);
+                        break;
+                    case 2:
+                        binary_search(arr, 0, n - 1, x);
+                        break;
+                    default:
+                        printf("Invalid option\n");
+                        continue;
+                }
+                end = clock();
+                cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
+                printf("Search executed in %f seconds\n", cpu_time_used);
+                break;
+            case 6:
+                free(arr);
+                return 0;
+            default:
+                printf("Invalid option\n");
+        }
+    }
+}
+
+// Initialize the array with random numbers
+void initialize_array(int arr[], int n) {
+    srand(time(0));
+    for (int i = 0; i < n; i++) {
+        arr[i] = rand() % 1000;
+    }
+}
+
+// Print the array
+void print_array(int arr[], int n) {
+    for (int i = 0; i < n; i++) {
+        printf("%d ", arr[i]);
+    }
+    printf("\n");
+}
+
+// Free the allocated memory for the array
+void free_array(int *arr) {
+    free(arr);
+    printf("Memory has been freed\n");
+}
+
+// Selection Sort implementation
+void selection_sort(int arr[], int n) {
+    int i, j, min_idx;
+    for (i = 0; i < n-1; i++) {
+        min_idx = i;
+        for (j = i+1; j < n; j++)
+            if (arr[j] < arr[min_idx])
+                min_idx = j;
+        int temp = arr[min_idx];
+        arr[min_idx] = arr[i];
+        arr[i] = temp;
+    }
+}
+
+// Insertion Sort implementation
+void insertion_sort(int arr[], int n) {
+    int i, key, j;
+    for (i = 1; i < n; i++) {
+        key = arr[i];
+        j = i - 1;
+        while (j >= 0 && arr[j] > key) {
+            arr[j + 1] = arr[j];
+            j = j - 1;
+        }
+        arr[j + 1] = key;
+    }
+}
+
+// Bubble Sort implementation
+void bubble_sort(int arr[], int n) {
+    int i, j;
+    for (i = 0; i < n-1; i++)
+        for (j = 0; j < n-i-1; j++)
+            if (arr[j] > arr[j+1]) {
+                int temp = arr[j];
+                arr[j] = arr[j+1];
+                arr[j+1] = temp;
+            }
+}
+
+// Merge function used in Merge Sort
+void merge(int arr[], int l, int m, int r) {
+    int n1 = m - l + 1;
+    int n2 = r - m;
+    int L[n1], R[n2];
+    for (int i = 0; i < n1; i++)
+        L[i] = arr[l + i];
+    for (int j = 0; j < n2; j++)
+        R[j] = arr[m + 1 + j];
+    int i = 0, j = 0, k = l;
+    while (i < n1 && j < n2) {
+        if (L[i] <= R[j]) {
+            arr[k] = L[i];
+            i++;
+        } else {
+            arr[k] = R[j];
+            j++;
+        }
+        k++;
+    }
+    while (i < n1) {
+        arr[k] = L[i];
+        i++;
+        k++;
+    }
+    while (j < n2) {
+        arr[k] = R[j];
+        j++;
+        k++;
+    }
+}
+
+// Merge Sort implementation
+void merge_sort(int arr[], int l, int r) {
+    if (l < r) {
+        int m = l + (r - l) / 2;
+        merge_sort(arr, l, m);
+        merge_sort(arr, m + 1, r);
+        merge(arr, l, m, r);
+    }
+}
+
+// Partition function used in Quick Sort
+int partition(int arr[], int low, int high) {
+    int pivot = arr[high];
+    int i = (low - 1);
+    for (int j = low; j <= high - 1; j++) {
+        if (arr[j] < pivot) {
+            i++;
+            int temp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = temp;
+        }
+    }
+    int temp = arr[i + 1];
+    arr[i + 1] = arr[high];
+    arr[high] = temp;
+    return (i + 1);
+}
+
+// Quick Sort implementation
+void quick_sort(int arr[], int low, int high) {
+    if (low < high) {
+        int pi = partition(arr, low, high);
+        quick_sort(arr, low, pi - 1);
+        quick_sort(arr, pi + 1, high);
+    }
+}
+
+// Heapify function used in Heap Sort
+void heapify(int arr[], int n, int i) {
+    int largest = i;
+    int l = 2 * i + 1;
+    int r = 2 * i + 2;
+    if (l < n && arr[l] > arr[largest])
+        largest = l;
+    if (r < n && arr[r] > arr[largest])
+        largest = r;
+    if (largest != i) {
+        int swap = arr[i];
+        arr[i] = arr[largest];
+        arr[largest] = swap;
+        heapify(arr, n, largest);
+    }
+}
+
+// Heap Sort implementation
+void heap_sort(int arr[], int n) {
+    for (int i = n / 2 - 1; i >= 0; i--)
+        heapify(arr, n, i);
+    for (int i = n - 1; i > 0; i--) {
+        int temp = arr[0];
+        arr[0] = arr[i];
+        arr[i] = temp;
+        heapify(arr, i, 0);
+    }
+}
+
+// Linear Search implementation
+int linear_search(int arr[], int n, int x) {
+    for (int i = 0; i < n; i++)
+        if (arr[i] == x)
+            return i;
+    return -1;
+}
+
+// Binary Search implementation
+int binary_search(int arr[], int l, int r, int x) {
+    while (l <= r) {
+        int m = l + (r - l) / 2;
+        if (arr[m] == x)
+            return m;
+        if (arr[m] < x)
+            l = m + 1;
+        else
+            r = m - 1;
+    }
+    return -1;
 }
